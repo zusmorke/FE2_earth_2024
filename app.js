@@ -1,10 +1,7 @@
-let scene;
-let camera;
-let renderer;
-let controls;
-let planet1;
-let planet2;
-let planet3;
+let scene, camera, renderer, controls, raycaster, mouse;
+let planet1, planet2, planet3;
+let selectedPlanet = null;
+let spaceView = true;
 
 function main() {
   const canvas = document.querySelector("#c");
@@ -27,23 +24,45 @@ function main() {
   renderer.autoClear = false;
   renderer.setClearColor(0x000000, 0.0);
 
-  // Create Earth
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+
+  const textureLoader = new THREE.TextureLoader();
+
   const earthGeometry = new THREE.SphereGeometry(0.6, 32, 32);
   const earthMaterial = new THREE.MeshPhongMaterial({
     roughness: 1,
     metalness: 0,
-    map: new THREE.TextureLoader().load("images/earthmap1k.jpg"),
-    bumpMap: new THREE.TextureLoader().load("images/earthbump.jpg"),
+    map: textureLoader.load("images/earthmap1k.jpg"),
+    bumpMap: textureLoader.load("images/earthbump.jpg"),
     bumpScale: 0.3,
   });
+
   const earthMesh = new THREE.Mesh(earthGeometry, earthMaterial);
   scene.add(earthMesh);
 
-  // Set ambient light
+  const cloudGeometry = new THREE.SphereGeometry(0.61, 32, 32);
+  const cloudMaterial = new THREE.MeshPhongMaterial({
+    map: textureLoader.load("images/earthCloud.png"),
+    transparent: true,
+  });
+
+  const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
+  scene.add(cloudMesh);
+
+  const starGeometry = new THREE.SphereGeometry(80, 64, 64);
+  const starMaterial = new THREE.MeshBasicMaterial({
+    map: textureLoader.load("images/galaxy.png"),
+    side: THREE.BackSide,
+  });
+
+  const starMesh = new THREE.Mesh(starGeometry, starMaterial);
+  scene.add(starMesh);
+
+  // Add lighting to the scene
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
   scene.add(ambientLight);
 
-  // Set point lights
   const pointLight1 = new THREE.PointLight(0xffffff, 0.9);
   pointLight1.position.set(5, 3, 5);
   scene.add(pointLight1);
@@ -52,26 +71,8 @@ function main() {
   pointLight2.position.set(-5, -3, -5);
   scene.add(pointLight2);
 
-  // Cloud
-  const cloudGeometry = new THREE.SphereGeometry(0.63, 32, 32);
-  const cloudMaterial = new THREE.MeshPhongMaterial({
-    map: new THREE.TextureLoader().load("images/earthCloud.png"),
-    transparent: true,
-  });
-  const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
-  scene.add(cloudMesh);
-
-  // Star
-  const starGeometry = new THREE.SphereGeometry(80, 64, 64);
-  const starMaterial = new THREE.MeshBasicMaterial({
-    map: new THREE.TextureLoader().load("images/galaxy.png"),
-    side: THREE.BackSide,
-  });
-  const starMesh = new THREE.Mesh(starGeometry, starMaterial);
-  scene.add(starMesh);
-
   // Create orbits and planets
-  function createPlanet(size, images, distance) {
+  function createPlanet(size, images, distance, info) {
     const planetGroup = new THREE.Group();
 
     const orbitGeometry = new THREE.RingGeometry(
@@ -82,32 +83,32 @@ function main() {
     const orbitMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.DoubleSide,
-      opacity: 0.2, // Adjust opacity to make the orbits less visible
+      opacity: 0.2,
       transparent: true,
     });
     const orbit = new THREE.Mesh(orbitGeometry, orbitMaterial);
-    orbit.rotation.x = Math.PI / 2; // Rotate the orbit to be in the xy-plane
+    orbit.rotation.x = Math.PI / 2;
     planetGroup.add(orbit);
 
     const planetGeometry = new THREE.SphereGeometry(size, 32, 32);
     const planetMaterial = new THREE.MeshPhongMaterial({
-      map: new THREE.TextureLoader().load(images),
+      map: textureLoader.load(images),
     });
     const planetMesh = new THREE.Mesh(planetGeometry, planetMaterial);
     planetMesh.position.set(distance, 0, 0);
+    planetMesh.userData = { info: info };
     planetGroup.add(planetMesh);
 
-    planetGroup.visible = false; // Initially hide the planet
+    planetGroup.visible = false;
 
     scene.add(planetGroup);
 
     return planetGroup;
   }
 
-  // Add example planets
-  planet1 = createPlanet(0.2, "images/planet1.jpg", 1);
-  planet2 = createPlanet(0.1, "images/planet2.jpg", 1.5);
-  planet3 = createPlanet(0.15, "images/planet3.jpg", 2);
+  planet1 = createPlanet(0.2, "images/planet1.jpg", 1, "Thông tin về Hành tinh 1");
+  planet2 = createPlanet(0.1, "images/planet2.jpg", 1.5, "Thông tin về Hành tinh 2");
+  planet3 = createPlanet(0.15, "images/planet3.jpg", 2, "Thông tin về Hành tinh 3");
 
   let speed1 = 0.02;
   let speed2 = 0.015;
@@ -117,7 +118,6 @@ function main() {
   let angle2 = 0;
   let angle3 = 0;
 
-  // Event listeners for input changes to update speed variables
   document.getElementById("speed1").addEventListener("input", (event) => {
     speed1 = parseFloat(event.target.value);
     if (speed1 < 0) {
@@ -145,73 +145,109 @@ function main() {
     console.log("Speed of planet 3 updated to:", speed3);
   });
 
-  // Event listeners for buttons to toggle planets visibility
   document.getElementById("planet1").addEventListener("click", () => {
-    planet1.visible = !planet1.visible; // Toggle planet visibility
+    planet1.visible = !planet1.visible;
   });
 
   document.getElementById("planet2").addEventListener("click", () => {
-    planet2.visible = !planet2.visible; // Toggle planet visibility
+    planet2.visible = !planet2.visible;
   });
 
   document.getElementById("planet3").addEventListener("click", () => {
-    planet3.visible = !planet3.visible; // Toggle planet visibility
+    planet3.visible = !planet3.visible;
   });
 
-  // Add orbit controls
+  document.getElementById("searchButton").addEventListener("click", () => {
+    const location = document.getElementById("searchLocation").value;
+    searchLocation(location);
+  });
+
+  document.getElementById("toggleView").addEventListener("click", () => {
+    toggleView();
+  });
+
+  window.addEventListener("click", onClick, false);
+
   controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true; // Enable damping (inertia)
-  controls.dampingFactor = 0.25; // Damping inertia factor
-  controls.minDistance = 1; // Minimum zoom distance
-  controls.maxDistance = 100; // Maximum zoom distance
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.25;
+  controls.minDistance = 1;
+  controls.maxDistance = 100;
 
   const animate = () => {
     requestAnimationFrame(animate);
+    earthMesh.rotation.y -= 0.001;
+    cloudMesh.rotation.y -= 0.0015;
 
-    // Rotate Earth and clouds
-    earthMesh.rotation.y -= 0.0015;
-    cloudMesh.rotation.y += 0.0015;
-    starMesh.rotation.y += 0.0005;
+    angle1 -= speed1;
+    planet1.children[1].position.set(Math.cos(angle1) * 1, 0, Math.sin(angle1) * 1);
 
-    // Rotate planets around Earth
-    if (planet1.visible) {
-      angle1 += speed1;
-      planet1.children[1].position.set(
-        1 * Math.cos(angle1),
-        0,
-        1 * Math.sin(angle1)
-      );
-    }
+    angle2 -= speed2;
+    planet2.children[1].position.set(Math.cos(angle2) * 1.5, 0, Math.sin(angle2) * 1.5);
 
-    if (planet2.visible) {
-      angle2 += speed2;
-      planet2.children[1].position.set(
-        1.5 * Math.cos(angle2),
-        0,
-        1.5 * Math.sin(angle2)
-      );
-    }
+    angle3 -= speed3;
+    planet3.children[1].position.set(Math.cos(angle3) * 2, 0, Math.sin(angle3) * 2);
 
-    if (planet3.visible) {
-      angle3 += speed3;
-      planet3.children[1].position.set(
-        2 * Math.cos(angle3),
-        0,
-        2 * Math.sin(angle3)
-      );
-    }
-
-    // Update controls
     controls.update();
-
-    render();
-  };
-
-  const render = () => {
     renderer.render(scene, camera);
   };
 
   animate();
 }
 
-window.onload = main;
+main();
+
+function searchLocation(location) {
+  if (location === "planet1") {
+    selectedPlanet = planet1;
+    showPlanetInfo("planet1", "Thông tin về Hành tinh 1");
+  } else if (location === "planet2") {
+    selectedPlanet = planet2;
+    showPlanetInfo("planet2", "Thông tin về Hành tinh 2");
+  } else if (location === "planet3") {
+    selectedPlanet = planet3;
+    showPlanetInfo("planet3", "Thông tin về Hành tinh 3");
+  } else {
+    alert("Vị trí không hợp lệ!");
+  }
+}
+
+function toggleView() {
+  if (selectedPlanet) {
+    spaceView = !spaceView;
+    if (spaceView) {
+      camera.position.set(0, 0, 3);
+      camera.lookAt(scene.position);
+      selectedPlanet = null;
+    } else {
+      camera.position.copy(selectedPlanet.position).multiplyScalar(1.5);
+      camera.lookAt(selectedPlanet.position);
+    }
+  } else {
+    alert("Không có hành tinh nào được chọn!");
+  }
+}
+
+function showPlanetInfo(planetId, info) {
+  const planetInfo = document.getElementById(planetId);
+  planetInfo.innerHTML = info;
+}
+
+function onClick(event) {
+  event.preventDefault();
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  const intersects = raycaster.intersectObjects(
+    [planet1, planet2, planet3],
+    true
+  );
+
+  if (intersects.length > 0) {
+    const planet = intersects[0].object;
+    const info = planet.userData.info;
+    alert("Thông tin hành tinh: " + info);
+  }
+}

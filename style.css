@@ -5,17 +5,29 @@
 }
 
 body {
-    background-color: #f0f0f0;
+    background-color: #000;
+    color: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+canvas {
+    display: block;
 }
 
 #palette {
     position: fixed;
     top: 50px;
-    right: 50px; /* Đổi từ left sang right */
-    background-color: white;
+    right: 50px;
+    background-color: rgba(255, 255, 255, 0.9);
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    color: #000;
 }
 
 #palette label {
@@ -62,14 +74,12 @@ body {
     outline: none;
 }
 
-/* Định dạng các nhóm thành phần bên trong palette */
 #palette div > * {
     display: inline-block;
     vertical-align: middle;
     margin-right: 10px;
 }
 
-/* Hiệu ứng hiển thị */
 @keyframes fadeIn {
     from {
         opacity: 0;
