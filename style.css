@@ -90,3 +90,18 @@ canvas {
         transform: translateY(0);
     }
 }
+#openPalette {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 999; /* Đảm bảo nút mở nằm trên cùng */
+}
+.dark-universe {
+    background-color: #000;
+    color: #fff;
+}
+
+.light-universe {
+    background-color: #fff;
+    color: #000;
+}

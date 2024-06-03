@@ -2,25 +2,20 @@ let scene, camera, renderer, controls, raycaster, mouse;
 let planet1, planet2, planet3;
 let selectedPlanet = null;
 let spaceView = true;
+let showOrbits = true;
 
 function main() {
   const canvas = document.querySelector("#c");
 
   scene = new THREE.Scene();
 
-  camera = new THREE.PerspectiveCamera(
-    45,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-  );
+  camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 0, 3);
   scene.add(camera);
 
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
-
   renderer.autoClear = false;
   renderer.setClearColor(0x000000, 0.0);
 
@@ -50,6 +45,32 @@ function main() {
   const cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
   scene.add(cloudMesh);
 
+  // Add atmospheric layer
+  const atmosphereGeometry = new THREE.SphereGeometry(0.65, 32, 32);
+  const atmosphereMaterial = new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.6 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
+        vec3 atmosphereColor = vec3(0.3, 0.6, 1.0);
+        gl_FragColor = vec4(atmosphereColor, 1.0) * intensity;
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    transparent: true,
+  });
+
+  const atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+  scene.add(atmosphereMesh);
+
   const starGeometry = new THREE.SphereGeometry(80, 64, 64);
   const starMaterial = new THREE.MeshBasicMaterial({
     map: textureLoader.load("images/galaxy.png"),
@@ -58,6 +79,18 @@ function main() {
 
   const starMesh = new THREE.Mesh(starGeometry, starMaterial);
   scene.add(starMesh);
+
+  // Add Sun
+  const sunGeometry = new THREE.SphereGeometry(1, 32, 32);
+  const sunMaterial = new THREE.MeshBasicMaterial({
+    map: textureLoader.load("images/sun.jpg"),
+    emissive: 0xffff00,
+    emissiveIntensity: 1,
+  });
+
+  const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+  sunMesh.position.set(5, 0, 0);
+  scene.add(sunMesh);
 
   // Add lighting to the scene
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -75,11 +108,7 @@ function main() {
   function createPlanet(size, images, distance, info) {
     const planetGroup = new THREE.Group();
 
-    const orbitGeometry = new THREE.RingGeometry(
-      distance - 0.01,
-      distance + 0.01,
-      64
-    );
+    const orbitGeometry = new THREE.RingGeometry(distance - 0.01, distance + 0.01, 64);
     const orbitMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       side: THREE.DoubleSide,
@@ -192,62 +221,112 @@ function main() {
     renderer.render(scene, camera);
   };
 
+  document.getElementById("toggleOrbits").addEventListener("click", () => {
+    toggleOrbits();
+  });
+
   animate();
 }
 
 main();
 
 function searchLocation(location) {
-  if (location === "planet1") {
+  if (location.toLowerCase() === "hanoi") {
     selectedPlanet = planet1;
-    showPlanetInfo("planet1", "Thông tin về Hành tinh 1");
-  } else if (location === "planet2") {
+  } else if (location.toLowerCase() === "hue") {
     selectedPlanet = planet2;
-    showPlanetInfo("planet2", "Thông tin về Hành tinh 2");
-  } else if (location === "planet3") {
+  } else if (location.toLowerCase() === "hochiminh") {
     selectedPlanet = planet3;
-    showPlanetInfo("planet3", "Thông tin về Hành tinh 3");
   } else {
-    alert("Vị trí không hợp lệ!");
+    alert("Vị trí không hợp lệ. Vui lòng nhập Hanoi, Hue hoặc HoChiMinh.");
+    return;
+  }
+
+  spaceView = false;
+  planet1.visible = false;
+  planet2.visible = false;
+  planet3.visible = false;
+
+  if (selectedPlanet) {
+    selectedPlanet.visible = true;
   }
 }
 
 function toggleView() {
-  if (selectedPlanet) {
-    spaceView = !spaceView;
-    if (spaceView) {
-      camera.position.set(0, 0, 3);
-      camera.lookAt(scene.position);
-      selectedPlanet = null;
-    } else {
-      camera.position.copy(selectedPlanet.position).multiplyScalar(1.5);
-      camera.lookAt(selectedPlanet.position);
-    }
-  } else {
-    alert("Không có hành tinh nào được chọn!");
-  }
-}
+  spaceView = !spaceView;
 
-function showPlanetInfo(planetId, info) {
-  const planetInfo = document.getElementById(planetId);
-  planetInfo.innerHTML = info;
+  if (spaceView) {
+    planet1.visible = false;
+    planet2.visible = false;
+    planet3.visible = false;
+  } else {
+    if (selectedPlanet) {
+      selectedPlanet.visible = true;
+    }
+  }
 }
 
 function onClick(event) {
   event.preventDefault();
+
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
 
   const intersects = raycaster.intersectObjects(
-    [planet1, planet2, planet3],
+    [planet1.children[1], planet2.children[1], planet3.children[1]],
     true
   );
 
   if (intersects.length > 0) {
-    const planet = intersects[0].object;
-    const info = planet.userData.info;
-    alert("Thông tin hành tinh: " + info);
+    const info = intersects[0].object.userData.info;
+    alert(info);
   }
 }
+  
+function toggleOrbits() {
+  showOrbits = !showOrbits;
+  planet1.children[0].visible = showOrbits;
+  planet2.children[0].visible = showOrbits;
+  planet3.children[0].visible = showOrbits;
+}
+
+document.getElementById("togglePalette").addEventListener("click", () => {
+  const palette = document.getElementById("palette");
+  if (palette.style.display === "none") {
+      palette.style.display = "block";
+      document.getElementById("togglePalette").style.display = "block";
+      document.getElementById("openPalette").style.display = "none";
+  } else {
+      palette.style.display = "none";
+      document.getElementById("togglePalette").style.display = "none";
+      document.getElementById("openPalette").style.display = "block";
+  }
+});
+
+document.getElementById("openPalette").addEventListener("click", () => {
+  const palette = document.getElementById("palette");
+  palette.style.display = "block";
+  document.getElementById("togglePalette").style.display = "block";
+  document.getElementById("openPalette").style.display = "none";
+});
+
+
+// Add Sun
+const sunGeometry = new THREE.SphereGeometry(1, 32, 32); // Đặt bán kính của mặt trời
+const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xFFA500  }); // Đặt màu vàng cho mặt trời
+const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+scene.add(sunMesh);
+
+// Đặt vị trí của mặt trời
+sunMesh.position.set(10, 10, 10); // Đặt vị trí xa hơn so với các hành tinh
+
+// Thêm ánh sáng từ mặt trời
+const sunLight = new THREE.PointLight(0xffffff, 1); // Đặt ánh sáng mạnh từ mặt trời
+sunLight.position.copy(sunMesh.position); // Đặt vị trí ánh sáng giống như mặt trời
+scene.add(sunLight);
+
+// Thêm nguồn ánh sáng môi trường
+const ambientLight = new THREE.AmbientLight(0x404040); // Một ánh sáng môi trường nhỏ để tránh hiện tượng tối đen hoàn toàn
+scene.add(ambientLight);
